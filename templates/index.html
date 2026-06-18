@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SQLite Netzwerk-Manager</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, sans-serif; margin: 0; background: #f4f5f7;
+      color: #222;
+    }
+    header {
+      background: #2c3e50; color: #fff; padding: 1rem 1.5rem;
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 1rem;
+    }
+    header h1 { font-size: 1.2rem; margin: 0; }
+    .auth { display: flex; gap: .5rem; align-items: center; }
+    .auth input {
+      padding: .4rem .6rem; border-radius: 4px; border: none; min-width: 220px;
+    }
+    button {
+      cursor: pointer; border: none; border-radius: 4px;
+      padding: .45rem .8rem; background: #3498db; color: #fff;
+      font-size: .9rem;
+    }
+    button:hover { background: #2980b9; }
+    button.danger { background: #e74c3c; }
+    button.danger:hover { background: #c0392b; }
+    button.success { background: #27ae60; }
+    button.success:hover { background: #1e8449; }
+    button.secondary { background: #95a5a6; }
+    button.secondary:hover { background: #7f8c8d; }
+    button.warn { background: #f39c12; }
+    button.warn:hover { background: #d68910; }
+    button.small { padding: .25rem .5rem; font-size: .8rem; }
+    main { display: flex; gap: 1rem; padding: 1rem; }
+    .sidebar {
+      width: 240px; background: #fff; border-radius: 8px; padding: 1rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,.1); flex-shrink: 0;
+    }
+    .sidebar h3 { margin-top: 0; }
+    .sidebar ul { list-style: none; padding: 0; margin: 0; }
+    .sidebar li {
+      padding: .5rem .6rem; border-radius: 4px; cursor: pointer;
+    }
+    .sidebar li:hover, .sidebar li.active { background: #ecf0f1; }
+    .sidebar-actions { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #eee; }
+    .content {
+      flex: 1; background: #fff; border-radius: 8px; padding: 1rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,.1); overflow-x: auto;
+    }
+    table { border-collapse: collapse; width: 100%; font-size: .9rem; }
+    th, td {
+      border: 1px solid #ddd; padding: .5rem; text-align: left;
+      white-space: nowrap;
+    }
+    th { background: #f8f9fa; }
+    .badge {
+      background: #27ae60; color: #fff; padding: .2rem .5rem;
+      border-radius: 12px; font-size: .75rem;
+    }
+    .perm { background: #95a5a6; }
+    .msg { padding: .6rem; border-radius: 4px; margin: .5rem 0; }
+    .msg.error { background: #fdecea; color: #c0392b; }
+    .msg.ok { background: #eafaf1; color: #27ae60; }
+    .toolbar {
+      margin-bottom: 1rem; display: flex; gap: .5rem; flex-wrap: wrap;
+      align-items: center;
+    }
+    .toolbar input[type="text"] {
+      padding: .4rem .6rem; border: 1px solid #ccc; border-radius: 4px;
+      min-width: 200px;
+    }
+    .toolbar select {
+      padding: .4rem; border: 1px solid #ccc; border-radius: 4px;
+    }
+    .sql-box textarea {
+      width: 100%; min-height: 80px; font-family: monospace;
+      padding: .5rem; border: 1px solid #ccc; border-radius: 4px;
+    }
+    .action-cell { display: flex; gap: .3rem; }
+
+    /* Modal-Dialog */
+    .modal-overlay {
+      display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,.5); z-index: 1000;
+      justify-content: center; align-items: center;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: #fff; border-radius: 8px; padding: 1.5rem;
+      max-width: 600px; width: 90%; max-height: 90vh; overflow-y: auto;
+      box-shadow: 0 4px 12px rgba(0,0,0,.2);
+    }
+    .modal h3 { margin-top: 0; }
+    .form-field { margin-bottom: 1rem; }
+    .form-field label {
+      display: block; margin-bottom: .25rem; font-weight: 600;
+      font-size: .9rem;
+    }
+    .form-field .hint {
+      font-size: .75rem; color: #777; margin-left: .4rem; font-weight: normal;
+    }
+    .form-field input, .form-field textarea, .form-field select {
+      width: 100%; padding: .5rem; border: 1px solid #ccc;
+      border-radius: 4px; font-size: .9rem;
+    }
+    .form-field textarea { min-height: 60px; font-family: inherit; }
+    .modal-buttons {
+      display: flex; gap: .5rem; justify-content: flex-end; margin-top: 1rem;
+    }
+
+    /* Spalten-Editor für Tabellen-Erstellung */
+    .col-row {
+      display: grid;
+      grid-template-columns: 2fr 2fr 1fr 1fr auto;
+      gap: .4rem; margin-bottom: .4rem; align-items: center;
+    }
+    .col-row input, .col-row select {
+      padding: .35rem; border: 1px solid #ccc; border-radius: 4px;
+      font-size: .85rem;
+    }
+    .col-row label {
+      display: flex; align-items: center; gap: .25rem;
+      font-size: .8rem; cursor: pointer;
+    }
+    .col-header {
+      display: grid;
+      grid-template-columns: 2fr 2fr 1fr 1fr auto;
+      gap: .4rem; font-size: .75rem; color: #666; font-weight: 600;
+      padding: 0 .35rem;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>🗄️ SQLite Netzwerk-Manager</h1>
+    <div class="auth">
+      <input type="password" id="apiKey" placeholder="API-Key eingeben..."
+             onkeydown="if(event.key==='Enter') login()">
+      <button onclick="login()">Anmelden</button>
+      <span id="userInfo"></span>
+    </div>
+  </header>
+
+  <main>
+    <div class="sidebar">
+      <h3>Tabellen</h3>
+      <ul id="tableList"><li>Bitte anmelden</li></ul>
+      <div class="sidebar-actions">
+        <button class="success" id="createTableBtn" onclick="openCreateTableModal()" style="display:none; width:100%;">
+          ➕ Neue Tabelle
+        </button>
+      </div>
+    </div>
+    <div class="content">
+      <div id="messages"></div>
+      <div id="permArea" style="margin-bottom:1rem;"></div>
+
+      <div class="toolbar" id="toolbar" style="display:none;">
+        <input type="text" id="searchInput" placeholder="🔍 Suchen..."
+               onkeydown="if(event.key==='Enter') doSearch()">
+        <select id="searchColumn">
+          <option value="">Alle Spalten</option>
+        </select>
+        <button onclick="doSearch()">Suchen</button>
+        <button onclick="clearSearch()">↺ Zurücksetzen</button>
+        <button onclick="loadRows(currentTable)">🔄 Aktualisieren</button>
+        <button class="success" id="insertBtn" onclick="openInsertModal()" style="display:none;">➕ Neuer Datensatz</button>
+        <button class="danger" id="dropBtn" onclick="dropTable()" style="display:none;">🗑️ Tabelle löschen</button>
+      </div>
+
+      <div id="data"><p>Wähle eine Tabelle aus der Liste.</p></div>
+
+      <div class="sql-box" id="sqlBox" style="display:none; margin-top:2rem;">
+        <h3>Raw SQL ausführen</h3>
+        <textarea id="sqlInput" placeholder="SELECT * FROM ..."></textarea>
+        <br><br>
+        <button onclick="runSql()">▶️ Ausführen</button>
+        <div id="sqlResult"></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Modal: Datensatz einfügen/bearbeiten -->
+  <div class="modal-overlay" id="rowModal" onclick="if(event.target===this) closeRowModal()">
+    <div class="modal">
+      <h3 id="rowModalTitle">Datensatz</h3>
+      <form id="rowForm" onsubmit="submitRow(event)">
+        <div id="rowFields"></div>
+        <div class="modal-buttons">
+          <button type="button" class="secondary" onclick="closeRowModal()">Abbrechen</button>
+          <button type="submit" class="success">Speichern</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Neue Tabelle erstellen -->
+  <div class="modal-overlay" id="createTableModal" onclick="if(event.target===this) closeCreateTableModal()">
+    <div class="modal">
+      <h3>Neue Tabelle erstellen</h3>
+      <form onsubmit="submitCreateTable(event)">
+        <div class="form-field">
+          <label>Tabellenname <span class="hint">(nur Buchstaben, Zahlen, _)</span></label>
+          <input type="text" id="newTableName" required pattern="[A-Za-z0-9_]+">
+        </div>
+
+        <div class="form-field">
+          <label>Spalten</label>
+          <div class="col-header">
+            <span>Name</span>
+            <span>Typ</span>
+            <span>PK</span>
+            <span>NOT NULL</span>
+            <span></span>
+          </div>
+          <div id="columnsContainer"></div>
+          <button type="button" class="secondary small" onclick="addColumnRow()" style="margin-top:.5rem;">
+            ➕ Spalte hinzufügen
+          </button>
+        </div>
+
+        <div class="modal-buttons">
+          <button type="button" class="secondary" onclick="closeCreateTableModal()">Abbrechen</button>
+          <button type="submit" class="success">Tabelle erstellen</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    let apiKey = "";
+    let permissions = [];
+    let tablePerms = {};
+    let currentTable = null;
+    let currentColumns = [];
+    let editingRowId = null;  // null = neuer Datensatz, sonst rowid
+
+    function headers() {
+      return { "X-API-Key": apiKey, "Content-Type": "application/json" };
+    }
+
+    function showMsg(text, type = "ok") {
+      const div = document.getElementById("messages");
+      div.innerHTML = `<div class="msg ${type}">${text}</div>`;
+      setTimeout(() => div.innerHTML = "", 4000);
+    }
+
+    function renderPermissions(perms) {
+      document.getElementById("permArea").innerHTML =
+        "Berechtigungen: " +
+        perms.map(p => `<span class="badge perm">${p}</span>`).join(" ");
+    }
+
+    function canOnTable(table, perm) {
+      if (tablePerms === "*") return permissions.includes(perm);
+      const allowed = tablePerms[table];
+      return allowed ? allowed.includes(perm) : false;
+    }
+
+    // Tabellen-Erstellung global: braucht create_table-Recht
+    function canCreateTables() {
+      if (tablePerms === "*") return permissions.includes("create_table");
+      // Bei eingeschränkten Rollen: nur erlauben, wenn irgendeine Tabelle
+      // create_table erlaubt (bzw. das globale Recht vorhanden ist)
+      return permissions.includes("create_table");
+    }
+
+    async function login() {
+      apiKey = document.getElementById("apiKey").value.trim();
+      if (!apiKey) { showMsg("Bitte API-Key eingeben", "error"); return; }
+      const res = await fetch("/api/me", { headers: headers() });
+      if (!res.ok) { showMsg("Ungültiger API-Key", "error"); return; }
+      const user = await res.json();
+      permissions = user.permissions;
+      tablePerms = user.table_permissions;
+      document.getElementById("userInfo").innerHTML =
+        `<span class="badge">${user.name} (${user.role})</span>`;
+      renderPermissions(user.permissions);
+      loadTables();
+      document.getElementById("sqlBox").style.display =
+        permissions.includes("execute_raw") ? "block" : "none";
+      document.getElementById("createTableBtn").style.display =
+        canCreateTables() ? "block" : "none";
+    }
+
+    async function loadTables() {
+      const res = await fetch("/api/tables", { headers: headers() });
+      const data = await res.json();
+      const list = document.getElementById("tableList");
+      if (!data.tables || data.tables.length === 0) {
+        list.innerHTML = "<li>Keine Tabellen</li>";
+        return;
+      }
+      list.innerHTML = "";
+      data.tables.forEach(t => {
+        const li = document.createElement("li");
+        li.textContent = t;
+        li.onclick = () => selectTable(li, t);
+        list.appendChild(li);
+      });
+    }
+
+    async function selectTable(li, table) {
+      document.querySelectorAll(".sidebar li").forEach(x => x.classList.remove("active"));
+      li.classList.add("active");
+      currentTable = table;
+      document.getElementById("toolbar").style.display = "flex";
+      document.getElementById("dropBtn").style.display =
+        canOnTable(table, "drop_table") ? "inline-block" : "none";
+      document.getElementById("insertBtn").style.display =
+        canOnTable(table, "write") ? "inline-block" : "none";
+      document.getElementById("searchInput").value = "";
+      await loadColumns(table);
+      loadRows(table);
+    }
+
+    async function loadColumns(table) {
+      const res = await fetch(`/api/tables/${table}/schema`, { headers: headers() });
+      const select = document.getElementById("searchColumn");
+      select.innerHTML = '<option value="">Alle Spalten</option>';
+      currentColumns = [];
+      if (res.ok) {
+        const data = await res.json();
+        currentColumns = data.columns;
+        data.columns.forEach(col => {
+          const opt = document.createElement("option");
+          opt.value = col.name;
+          opt.textContent = col.name;
+          select.appendChild(opt);
+        });
+      }
+    }
+
+    function doSearch() {
+      const term = document.getElementById("searchInput").value.trim();
+      const col = document.getElementById("searchColumn").value;
+      loadRows(currentTable, term, col);
+    }
+
+    function clearSearch() {
+      document.getElementById("searchInput").value = "";
+      document.getElementById("searchColumn").value = "";
+      loadRows(currentTable);
+    }
+
+    async function loadRows(table, search = "", column = "") {
+      let url = `/api/tables/${table}/rows?limit=200`;
+      if (search) url += `&search=${encodeURIComponent(search)}`;
+      if (column) url += `&column=${encodeURIComponent(column)}`;
+
+      const res = await fetch(url, { headers: headers() });
+      const data = await res.json();
+      const target = document.getElementById("data");
+      if (data.error) { target.innerHTML = `<p>${data.error}</p>`; return; }
+      if (data.rows.length === 0) {
+        target.innerHTML = search
+          ? `<p>Keine Treffer für "<b>${search}</b>" in <b>${table}</b>.</p>`
+          : `<p>Tabelle <b>${table}</b> ist leer.</p>`;
+        return;
+      }
+
+      const cols = Object.keys(data.rows[0]).filter(c => c !== "_rowid");
+      const canEdit = canOnTable(table, "write");
+      const canDelete = canOnTable(table, "delete");
+      const showActions = canEdit || canDelete;
+
+      const info = search ? ` – Suche: "${search}"` : "";
+      let html = `<h3>${table} (${data.count} Zeilen)${info}</h3><table><thead><tr>`;
+      cols.forEach(c => html += `<th>${c}</th>`);
+      if (showActions) html += "<th>Aktionen</th>";
+      html += "</tr></thead><tbody>";
+
+      data.rows.forEach((row, idx) => {
+        const rowid = row["_rowid"];
+        // Daten in globalem Cache speichern, damit Edit darauf zugreifen kann
+        rowCache[rowid] = row;
+        html += "<tr>";
+        cols.forEach(c => {
+          const val = row[c];
+          html += `<td>${val === null || val === undefined ? "" : String(val)}</td>`;
+        });
+        if (showActions) {
+          html += '<td class="action-cell">';
+          if (canEdit) html += `<button class="warn small" onclick="openEditModal(${rowid})">✏️</button>`;
+          if (canDelete) html += `<button class="danger small" onclick="deleteRow('${table}', ${rowid})">🗑️</button>`;
+          html += "</td>";
+        }
+        html += "</tr>";
+      });
+      html += "</tbody></table>";
+      target.innerHTML = html;
+    }
+
+    // Cache für Zeilen, damit der Edit-Dialog vorausgefüllt werden kann
+    const rowCache = {};
+
+    // ---------- Row-Modal (Insert + Edit) ----------
+    function openInsertModal() {
+      editingRowId = null;
+      buildRowForm();
+      document.getElementById("rowModalTitle").textContent =
+        `Neuer Datensatz in "${currentTable}"`;
+      document.getElementById("rowModal").classList.add("show");
+    }
+
+    function openEditModal(rowid) {
+      editingRowId = rowid;
+      buildRowForm(rowCache[rowid] || {});
+      document.getElementById("rowModalTitle").textContent =
+        `Datensatz bearbeiten (rowid: ${rowid})`;
+      document.getElementById("rowModal").classList.add("show");
+    }
+
+    function closeRowModal() {
+      document.getElementById("rowModal").classList.remove("show");
+      editingRowId = null;
+    }
+
+    function buildRowForm(values = {}) {
+      if (!currentTable || currentColumns.length === 0) {
+        showMsg("Keine Spalten-Informationen verfügbar", "error");
+        return;
+      }
+      const container = document.getElementById("rowFields");
+      container.innerHTML = "";
+      const isEdit = editingRowId !== null;
+
+      currentColumns.forEach(col => {
+        const isAutoPK = col.pk === 1 &&
+          (col.type || "").toUpperCase().includes("INT");
+        const required = col.notnull === 1 && col.dflt_value === null && !isAutoPK;
+
+        const wrapper = document.createElement("div");
+        wrapper.className = "form-field";
+
+        const flags = [];
+        flags.push(col.type || "ANY");
+        if (col.pk === 1) flags.push("PK");
+        if (required) flags.push("erforderlich");
+        if (isAutoPK && !isEdit) flags.push("auto");
+
+        const label = document.createElement("label");
+        label.innerHTML = `${col.name} <span class="hint">(${flags.join(", ")})</span>`;
+        wrapper.appendChild(label);
+
+        const input = document.createElement("input");
+        input.type = guessInputType(col.type);
+        input.name = col.name;
+        input.dataset.colType = col.type || "";
+        input.dataset.autoPk = isAutoPK ? "1" : "0";
+
+        // Wert vorbelegen
+        if (values[col.name] !== undefined && values[col.name] !== null) {
+          input.value = values[col.name];
+        }
+
+        if (required && !isEdit) input.required = true;
+
+        if (isAutoPK && !isEdit) {
+          input.placeholder = "automatisch";
+        } else if (col.dflt_value !== null && !isEdit) {
+          input.placeholder = `Standard: ${col.dflt_value}`;
+        }
+
+        // Primärschlüssel beim Bearbeiten read-only
+        if (isEdit && col.pk === 1) {
+          input.readOnly = true;
+          input.style.background = "#f4f4f4";
+        }
+
+        wrapper.appendChild(input);
+        container.appendChild(wrapper);
+      });
+    }
+
+    function guessInputType(sqlType) {
+      const t = (sqlType || "").toUpperCase();
+      if (t.includes("INT")) return "number";
+      if (t.includes("REAL") || t.includes("FLOA") || t.includes("DOUB") || t.includes("NUM")) return "number";
+      if (t.includes("DATE")) return "date";
+      return "text";
+    }
+
+    async function submitRow(event) {
+      event.preventDefault();
+      const form = document.getElementById("rowForm");
+      const inputs = form.querySelectorAll("input");
+      const payload = {};
+      const isEdit = editingRowId !== null;
+
+      inputs.forEach(inp => {
+        const val = inp.value;
+        // Beim Insert: Auto-PK weglassen
+        if (!isEdit && inp.dataset.autoPk === "1") return;
+        // Beim Insert: leere Werte weglassen
+        if (!isEdit && val === "") return;
+        // Beim Edit: PK nicht ändern
+        if (isEdit && inp.readOnly) return;
+
+        if (val === "") {
+          payload[inp.name] = null;
+          return;
+        }
+
+        const type = (inp.dataset.colType || "").toUpperCase();
+        if (type.includes("INT")) {
+          payload[inp.name] = parseInt(val, 10);
+        } else if (type.includes("REAL") || type.includes("FLOA") || type.includes("DOUB") || type.includes("NUM")) {
+          payload[inp.name] = parseFloat(val);
+        } else {
+          payload[inp.name] = val;
+        }
+      });
+
+      const url = isEdit
+        ? `/api/tables/${currentTable}/rows/${editingRowId}`
+        : `/api/tables/${currentTable}/rows`;
+      const method = isEdit ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: headers(),
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showMsg(isEdit
+          ? `Datensatz aktualisiert (rowid: ${editingRowId})`
+          : `Datensatz eingefügt (ID: ${data.id})`);
+        closeRowModal();
+        loadRows(currentTable);
+      } else {
+        showMsg(data.error || "Fehler beim Speichern", "error");
+      }
+    }
+
+    // ---------- Tabelle erstellen ----------
+    function openCreateTableModal() {
+      document.getElementById("newTableName").value = "";
+      document.getElementById("columnsContainer").innerHTML = "";
+      // Standardmäßig zwei Spalten anlegen: id (PK) + name
+      addColumnRow({ name: "id", type: "INTEGER", pk: true, notnull: false });
+      addColumnRow({ name: "name", type: "TEXT", pk: false, notnull: false });
+      document.getElementById("createTableModal").classList.add("show");
+    }
+
+    function closeCreateTableModal() {
+      document.getElementById("createTableModal").classList.remove("show");
+    }
+
+    function addColumnRow(preset = {}) {
+      const container = document.getElementById("columnsContainer");
+      const row = document.createElement("div");
+      row.className = "col-row";
+      row.innerHTML = `
+        <input type="text" placeholder="Spaltenname" class="col-name"
+               pattern="[A-Za-z0-9_]+" value="${preset.name || ""}" required>
+        <select class="col-type">
+          <option value="INTEGER">INTEGER</option>
+          <option value="TEXT">TEXT</option>
+          <option value="REAL">REAL</option>
+          <option value="NUMERIC">NUMERIC</option>
+          <option value="BLOB">BLOB</option>
+        </select>
+        <label><input type="checkbox" class="col-pk"> PK</label>
+        <label><input type="checkbox" class="col-notnull"> NN</label>
+        <button type="button" class="danger small" onclick="this.parentElement.remove()">✕</button>
+      `;
+      container.appendChild(row);
+      // Werte setzen
+      if (preset.type) row.querySelector(".col-type").value = preset.type;
+      if (preset.pk) row.querySelector(".col-pk").checked = true;
+      if (preset.notnull) row.querySelector(".col-notnull").checked = true;
+    }
+
+    async function submitCreateTable(event) {
+      event.preventDefault();
+      const tableName = document.getElementById("newTableName").value.trim();
+      const rows = document.querySelectorAll("#columnsContainer .col-row");
+
+      if (rows.length === 0) {
+        showMsg("Mindestens eine Spalte erforderlich", "error");
+        return;
+      }
+
+      const columns = {};
+      let pkCount = 0;
+      for (const r of rows) {
+        const name = r.querySelector(".col-name").value.trim();
+        const type = r.querySelector(".col-type").value;
+        const isPk = r.querySelector(".col-pk").checked;
+        const isNotNull = r.querySelector(".col-notnull").checked;
+
+        if (!name) { showMsg("Spaltenname fehlt", "error"); return; }
+        if (columns[name]) { showMsg(`Doppelter Spaltenname: ${name}`, "error"); return; }
+
+        let definition = type;
+        if (isPk) {
+          definition += " PRIMARY KEY";
+          // Bei INTEGER PRIMARY KEY automatisch AUTOINCREMENT-Verhalten via rowid
+          if (type === "INTEGER") definition += " AUTOINCREMENT";
+          pkCount++;
+        }
+        if (isNotNull && !isPk) definition += " NOT NULL";
+
+        columns[name] = definition;
+      }
+
+      if (pkCount > 1) {
+        showMsg("Nur eine Spalte darf Primärschlüssel sein", "error");
+        return;
+      }
+
+      const res = await fetch(`/api/tables/${tableName}`, {
+        method: "POST",
+        headers: headers(),
+        body: JSON.stringify({ columns })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showMsg(`Tabelle "${tableName}" erstellt`);
+        closeCreateTableModal();
+        loadTables();
+      } else {
+        showMsg(data.error || "Fehler beim Erstellen", "error");
+      }
+    }
+
+    // ---------- Löschen ----------
+    async function deleteRow(table, rowid) {
+      if (!confirm("Datensatz wirklich löschen?")) return;
+      const res = await fetch(`/api/tables/${table}/rows/${rowid}`, {
+        method: "DELETE", headers: headers()
+      });
+      const data = await res.json();
+      if (res.ok) { showMsg(data.status); doSearch(); }
+      else showMsg(data.error, "error");
+    }
+
+    async function dropTable() {
+      if (!confirm(`Tabelle '${currentTable}' wirklich löschen?`)) return;
+      const res = await fetch(`/api/tables/${currentTable}`, {
+        method: "DELETE", headers: headers()
+      });
+      const data = await res.json();
+      if (res.ok) {
+        showMsg(data.status);
+        loadTables();
+        document.getElementById("data").innerHTML = "";
+        document.getElementById("toolbar").style.display = "none";
+      } else {
+        showMsg(data.error, "error");
+      }
+    }
+
+    async function runSql() {
+      const sql = document.getElementById("sqlInput").value;
+      const res = await fetch("/api/query", {
+        method: "POST", headers: headers(),
+        body: JSON.stringify({ sql })
+      });
+      const data = await res.json();
+      const target = document.getElementById("sqlResult");
+      if (data.error) { target.innerHTML = `<div class="msg error">${data.error}</div>`; return; }
+      if (data.rows) {
+        if (data.rows.length === 0) { target.innerHTML = "<p>Keine Ergebnisse</p>"; return; }
+        const cols = Object.keys(data.rows[0]);
+        let html = "<table><thead><tr>";
+        cols.forEach(c => html += `<th>${c}</th>`);
+        html += "</tr></thead><tbody>";
+        data.rows.forEach(r => {
+          html += "<tr>";
+          cols.forEach(c => html += `<td>${r[c] ?? ""}</td>`);
+          html += "</tr>";
+        });
+        html += "</tbody></table>";
+        target.innerHTML = html;
+      } else {
+        target.innerHTML = `<div class="msg ok">${data.status} (${data.rowcount} Zeilen betroffen)</div>`;
+      }
+    }
+  </script>
+</body>
+</html>
