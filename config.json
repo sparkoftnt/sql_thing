@@ -1,0 +1,32 @@
+{
+  "database": "data.db",
+  "host": "0.0.0.0",
+  "port": 5000,
+  "logging": {
+    "file": "server.log",
+    "level": "INFO"
+  },
+  "roles": {
+    "admin": {
+      "permissions": ["read", "write", "delete", "create_table", "drop_table", "execute_raw"],
+      "table_permissions": "*"
+    },
+    "editor": {
+      "permissions": ["read", "write"],
+      "table_permissions": {
+        "users": ["read", "write"],
+        "products": ["read", "write", "delete"],
+        "logs": ["read"]
+      }
+    },
+    "viewer": {
+      "permissions": ["read"],
+      "table_permissions": "*"
+    }
+  },
+  "api_keys": {
+    "super-secret-admin-key-123": { "name": "Administrator", "role": "admin" },
+    "editor-key-456": { "name": "Redakteur", "role": "editor" },
+    "viewer-key-789": { "name": "Leser", "role": "viewer" }
+  }
+}
